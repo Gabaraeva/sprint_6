@@ -1,71 +1,51 @@
 import pytest
 import allure
-import time
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from pages.main_page import MainPage
 from pages.order_page import OrderPage
+from test_data import OrderData  # Импортируем тестовые данные из отдельного модуля
 
 
 @allure.feature("Тесты заказа самоката")
 class TestOrder:
-    ORDER_DATA = [
-        (
-            "top",  # точка входа (верхняя кнопка)
-            {
-                "name": "Иван",
-                "last_name": "Иванов",
-                "address": "Москва, Красная площадь",
-                "metro_station": "Лубянка",
-                "phone": "88005553535"
-            },
-            {
-                "date": "01.01.2025",
-                "period": "сутки",
-                "color": "black",
-                "comment": "Первый тестовый заказ"
-            }
-        ),
-        (
-            "bottom",  # точка входа (нижняя кнопка)
-            {
-                "name": "Петр",
-                "last_name": "Петров",
-                "address": "Санкт-Петербург, Дворцовая площадь",
-                "metro_station": "Адмиралтейская",
-                "phone": "89001234567"
-            },
-            {
-                "date": "15.01.2025",
-                "period": "двое суток",
-                "color": "grey",
-                "comment": "Второй тестовый заказ"
-            }
-        )
-    ]
 
-    @allure.title("Тест заказа самоката через {entry_point}")
-    @pytest.mark.parametrize("entry_point, user_data, order_data", ORDER_DATA)
-    def test_order_scooter(self, driver, entry_point, user_data, order_data):
+    @allure.title("Тест заказа самоката через верхнюю кнопку")
+    def test_order_scooter_top_button(self, driver):
         main_page = MainPage(driver)
         order_page = OrderPage(driver)
 
         main_page.accept_cookies()
 
-        with allure.step(f"Нажимаем кнопку 'Заказать' ({entry_point})"):
-            if entry_point == "top":
-                main_page.click_order_button_top()
-            else:
-                # Прокручиваем до нижней кнопки перед кликом
-                driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                time.sleep(1)  # Небольшая задержка для прокрутки
-                main_page.click_order_button_bottom()
+        with allure.step("Нажимаем верхнюю кнопку 'Заказать'"):
+            main_page.click_order_button_top()
 
         with allure.step("Заполняем первую страницу заказа"):
-            order_page.fill_first_page(**user_data)
+            order_page.fill_first_page(**OrderData.TOP_ORDER['user_data'])
 
         with allure.step("Заполняем вторую страницу заказа"):
-            order_page.fill_second_page(**order_data)
+            order_page.fill_second_page(**OrderData.TOP_ORDER['order_data'])
+
+        with allure.step("Проверяем подтверждение заказа"):
+            assert order_page.is_order_successful(), "Заказ не был успешно оформлен"
+
+    @allure.title("Тест заказа самоката через нижнюю кнопку")
+    def test_order_scooter_bottom_button(self, driver):
+        main_page = MainPage(driver)
+        order_page = OrderPage(driver)
+
+        main_page.accept_cookies()
+
+        with allure.step("Нажимаем нижнюю кнопку 'Заказать'"):
+            # Используем метод Page Object вместо прямого вызова driver
+            main_page.scroll_to_bottom_button()
+            main_page.click_order_button_bottom()
+
+        with allure.step("Заполняем первую страницу заказа"):
+            order_page.fill_first_page(**OrderData.BOTTOM_ORDER['user_data'])
+
+        with allure.step("Заполняем вторую страницу заказа"):
+            order_page.fill_second_page(**OrderData.BOTTOM_ORDER['order_data'])
 
         with allure.step("Проверяем подтверждение заказа"):
             assert order_page.is_order_successful(), "Заказ не был успешно оформлен"
@@ -93,16 +73,17 @@ class TestOrder:
             main_page.click_yandex_logo()
 
         with allure.step("Ожидаем открытия новой вкладки"):
-            WebDriverWait(driver, 10).until(lambda d: len(d.window_handles) > 1)
+            # Используем явное ожидание вместо фиксированной паузы
+            WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
             new_window = [window for window in driver.window_handles if window != current_window][0]
 
         with allure.step("Переключаемся на новую вкладку"):
             driver.switch_to.window(new_window)
 
         with allure.step("Ожидаем загрузки Дзена"):
-            # Ожидаем появления элемента, характерного для Дзена
+            # Используем более надежный локатор
             WebDriverWait(driver, 15).until(
-                EC.presence_of_element_located(("css selector", ".dzen-desktop__card"))
+                EC.visibility_of_element_located(("css selector", "div.dzen-desktop"))
             )
 
         with allure.step("Проверяем URL"):
